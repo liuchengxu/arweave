@@ -17,7 +17,7 @@
 	bhl = []
 }).
 
-%% @doc Verify that a transaction against the given mempool, wallet list, recent
+%% @doc Verify a transaction against the given mempool, wallet list, recent
 %% weave txs, current block height, current difficulty, and current time.
 %% The mempool is used to look for the same transaction there and to make sure
 %% the transaction does not reference another transaction from the mempool.
@@ -26,11 +26,11 @@
 %% for on-edge verification where we want to accept potentially conflicting
 %% transactions to avoid consensus issues later.
 %% @end
-verify_tx(TX, Diff, Height, BlockTXPairs, Mempool, WalletList) ->
+verify_tx(TX, Rate, Height, BlockTXPairs, Mempool, WalletList) ->
 	WeaveState = create_state(BlockTXPairs),
 	verify_tx(
 		TX,
-		Diff,
+		Rate,
 		Height,
 		os:system_time(seconds),
 		WalletList,
@@ -42,16 +42,16 @@ verify_tx(TX, Diff, Height, BlockTXPairs, Mempool, WalletList) ->
 %% the given current difficulty and height, the previous blocks' wallet list,
 %% and recent weave transactions.
 %% @end
-verify_block_txs(TXs, Diff, Height, Timestamp, WalletList, BlockTXPairs) ->
+verify_block_txs(TXs, Rate, Height, Timestamp, WalletList, BlockTXPairs) ->
 	WeaveState = create_state(BlockTXPairs),
-	verify_block_txs(TXs, Diff, Height, Timestamp, WalletList, WeaveState, maps:new(), 0, 0).
+	verify_block_txs(TXs, Rate, Height, Timestamp, WalletList, WeaveState, maps:new(), 0, 0).
 
-verify_block_txs([], _Diff, _Height, _Timestamp, _Wallets, _WeaveState, _Mempool, _C, _Size) ->
+verify_block_txs([], _Rate, _Height, _Timestamp, _Wallets, _WeaveState, _Mempool, _C, _Size) ->
 	valid;
-verify_block_txs([TX | TXs], Diff, Height, Timestamp, Wallets, WeaveState, Mempool, C, Size) ->
+verify_block_txs([TX | TXs], Rate, Height, Timestamp, Wallets, WeaveState, Mempool, C, Size) ->
 	case verify_tx(
 		TX,
-		Diff,
+		Rate,
 		Height,
 		Timestamp,
 		Wallets,
@@ -80,7 +80,7 @@ verify_block_txs([TX | TXs], Diff, Height, Timestamp, Wallets, WeaveState, Mempo
 				_ ->
 					verify_block_txs(
 						TXs,
-						Diff,
+						Rate,
 						Height,
 						Timestamp,
 						NewWallets,
@@ -102,11 +102,11 @@ verify_block_txs([TX | TXs], Diff, Height, Timestamp, Wallets, WeaveState, Mempo
 %% transactions are sorted from highest to lowest utility and then from oldest
 %% block anchors to newest.
 %% @end
-pick_txs_to_mine(BlockTXPairs, Height, Diff, Timestamp, Wallets, TXs) ->
+pick_txs_to_mine(BlockTXPairs, Height, Rate, Timestamp, Wallets, TXs) ->
 	WeaveState = create_state(BlockTXPairs),
 	pick_txs_under_size_limit(
 		sort_txs_by_utility_and_anchor(TXs, WeaveState#state.bhl),
-		Diff,
+		Rate,
 		Height,
 		Timestamp,
 		Wallets,
@@ -116,7 +116,9 @@ pick_txs_to_mine(BlockTXPairs, Height, Diff, Timestamp, Wallets, TXs) ->
 		0
 	).
 
-%% PRIVATE
+%%%===================================================================
+%%% Private functions.
+%%%===================================================================
 
 create_state(BlockTXPairs) ->
 	MaxDepthTXs = lists:sublist(BlockTXPairs, ?MAX_TX_ANCHOR_DEPTH),
@@ -133,8 +135,8 @@ create_state(BlockTXPairs) ->
 		bhl = BHL
 	}.
 
-verify_tx(TX, Diff, Height, Timestamp, FloatingWallets, WeaveState, Mempool) ->
-	case ar_tx:verify(TX, Diff, Height, FloatingWallets, Timestamp) of
+verify_tx(TX, Rate, Height, Timestamp, FloatingWallets, WeaveState, Mempool) ->
+	case ar_tx:verify(TX, Rate, Height, FloatingWallets, Timestamp) of
 		true ->
 			verify_anchor(TX, Height, FloatingWallets, WeaveState, Mempool);
 		false ->
@@ -205,15 +207,15 @@ weave_map_contains_tx(TXID, WeaveMap) ->
 	).
 
 pick_txs_under_size_limit(
-	[], _Diff, _Height, _Timestamp, _Wallets, _WeaveState, _Mempool, _Size, _Count
+	[], _Rate, _Height, _Timestamp, _Wallets, _WeaveState, _Mempool, _Size, _Count
 ) ->
 	[];
 pick_txs_under_size_limit(
-	[TX | TXs], Diff, Height, Timestamp, Wallets, WeaveState, Mempool, Size, Count
+	[TX | TXs], Rate, Height, Timestamp, Wallets, WeaveState, Mempool, Size, Count
 ) ->
 	case verify_tx(
 		TX,
-		Diff,
+		Rate,
 		Height,
 		Timestamp,
 		Wallets,
@@ -237,7 +239,7 @@ pick_txs_under_size_limit(
 				true ->
 					pick_txs_under_size_limit(
 						TXs,
-						Diff,
+						Rate,
 						Height,
 						Timestamp,
 						Wallets,
@@ -249,7 +251,7 @@ pick_txs_under_size_limit(
 				false ->
 					[TX | pick_txs_under_size_limit(
 						TXs,
-						Diff,
+						Rate,
 						Height,
 						Timestamp,
 						NewWallets,
@@ -262,7 +264,7 @@ pick_txs_under_size_limit(
 		{invalid, _} ->
 			pick_txs_under_size_limit(
 				TXs,
-				Diff,
+				Rate,
 				Height,
 				Timestamp,
 				Wallets,

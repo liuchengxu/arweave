@@ -211,6 +211,13 @@ handle_info(wallets_ready, State) ->
 	Current = element(1, hd(BI)),
 	B = hd(Blocks),
 	ar_block_cache:initialize_from_list(block_cache, Blocks),
+	{Rate, ScheduledRate} =
+		case B#block.height >= ar_fork:height_2_5() of
+			true ->
+				{B#block.usd_to_ar_rate, B#block.scheduled_usd_to_ar_rate};
+			false ->
+				{?USD_TO_AR_INITIAL_RATE, ?USD_TO_AR_INITIAL_RATE}
+		end,
 	ets:insert(node_state, [
 		{is_joined,				true},
 		{block_index,			BI},
@@ -222,7 +229,9 @@ handle_info(wallets_ready, State) ->
 		{cumulative_diff,		B#block.cumulative_diff},
 		{last_retarget,			B#block.last_retarget},
 		{weave_size,			B#block.weave_size},
-		{block_txs_pairs,		[block_txs_pair(Block) || Block <- Blocks]}
+		{block_txs_pairs,		[block_txs_pair(Block) || Block <- Blocks]},
+		{usd_to_ar_rate,		Rate},
+		{scheduled_usd_to_ar_rate, ScheduledRate}
 	]),
 	{noreply, reset_miner(State)};
 
@@ -355,7 +364,7 @@ handle_task({filter_mempool, Iterator}, State) ->
 	[{tx_statuses, Map}] = ets:lookup(node_state, tx_statuses),
 	[{wallet_list, WalletList}] = ets:lookup(node_state, wallet_list),
 	[{height, Height}] = ets:lookup(node_state, height),
-	[{diff, Diff}] = ets:lookup(node_state, diff),
+	[{usd_to_ar_rate, Rate}] = ets:lookup(node_state, usd_to_ar_rate),
 	[{mempool_size, MempoolSize}] = ets:lookup(node_state, mempool_size),
 	[{block_txs_pairs, BlockTXPairs}] = ets:lookup(node_state, block_txs_pairs),
 	{ok, List, NextIterator} = take_mempool_chunk(Iterator, ?FILTER_MEMPOOL_CHUNK_SIZE),
@@ -369,7 +378,7 @@ handle_task({filter_mempool, Iterator}, State) ->
 					fun(TX, Acc) ->
 						case ar_tx_replay_pool:verify_tx(
 							TX,
-							Diff,
+							Rate,
 							Height,
 							BlockTXPairs,
 							#{},
@@ -619,7 +628,14 @@ apply_block(State, BShadow, [PrevB | _] = PrevBlocks) ->
 			PrevWalletList = PrevB#block.wallet_list,
 			PrevRewardPool = PrevB#block.reward_pool,
 			PrevHeight = PrevB#block.height,
-			case validate_wallet_list(B, PrevWalletList, PrevRewardPool, PrevHeight) of
+			Rate =
+				case PrevHeight >= ar_fork:height_2_5() of
+					true ->
+						PrevB#block.usd_to_ar_rate;
+					false ->
+						?USD_TO_AR_INITIAL_RATE
+				end,
+			case validate_wallet_list(B, PrevWalletList, PrevRewardPool, Rate, PrevHeight) of
 				error ->
 					BH = B#block.indep_hash,
 					ar_block_cache:remove(block_cache, BH),
@@ -716,8 +732,8 @@ update_block_txs_pairs2(B, [#block{ indep_hash = H }], BP) ->
 block_txs_pair(B) ->
 	{B#block.indep_hash, B#block.size_tagged_txs}.
 
-validate_wallet_list(B, WalletList, RewardPool, Height) ->
-	case ar_wallets:apply_block(B, WalletList, RewardPool, Height) of
+validate_wallet_list(B, WalletList, RewardPool, Rate, Height) ->
+	case ar_wallets:apply_block(B, WalletList, RewardPool, Rate, Height) of
 		{error, invalid_reward_pool} ->
 			?LOG_WARNING([
 				{event, received_invalid_block},
@@ -812,6 +828,13 @@ apply_validated_block2(State, B, PrevBlocks, BI, BlockTXPairs) ->
 	[{tx_statuses, Map2}] = ets:lookup(node_state, tx_statuses),
 	gen_server:cast(self(), {filter_mempool, maps:iterator(Map2)}),
 	lists:foreach(fun(TX) -> ar_tx_queue:drop_tx(TX) end, BlockTXs),
+	{Rate, ScheduledRate} =
+		case B#block.height >= ar_fork:height_2_5() of
+			true ->
+				{B#block.usd_to_ar_rate, B#block.scheduled_usd_to_ar_rate};
+			false ->
+				{?USD_TO_AR_INITIAL_RATE, ?USD_TO_AR_INITIAL_RATE}
+		end,
 	ets:insert(node_state, [
 		{block_index,			BI},
 		{current,				B#block.indep_hash},
@@ -822,7 +845,9 @@ apply_validated_block2(State, B, PrevBlocks, BI, BlockTXPairs) ->
 		{cumulative_diff,		B#block.cumulative_diff},
 		{last_retarget,			B#block.last_retarget},
 		{weave_size,			B#block.weave_size},
-		{block_txs_pairs,		BlockTXPairs}
+		{block_txs_pairs,		BlockTXPairs},
+		{usd_to_ar_rate,		Rate},
+		{scheduled_usd_to_ar_rate, ScheduledRate}
 	]),
 	reset_miner(State).
 
@@ -883,53 +908,32 @@ start_mining(StateIn) ->
 		tags := Tags
 	} = StateIn,
 	[{block_index, BI}] = ets:lookup(node_state, block_index),
-	[{height, Height}] = ets:lookup(node_state, height),
 	[{block_txs_pairs, BlockTXPairs}] = ets:lookup(node_state, block_txs_pairs),
 	[{current, Current}] = ets:lookup(node_state, current),
 	[{tx_statuses, Map}] = ets:lookup(node_state, tx_statuses),
-	POA =
-		case Height + 1 >= ar_fork:height_2_4() of
-			true ->
-				not_set;
-			false ->
-				ar_poa:generate(BI)
-		end,
-	case POA of
-		unavailable ->
-			?LOG_INFO(
-				[
-					{event, could_not_start_mining},
-					{reason, data_unavailable_to_generate_poa},
-					{generated_options_to_depth, ar_meta_db:get(max_poa_option_depth)}
-				]
-			),
-			StateIn;
-		_ ->
-			ar_watchdog:started_hashing(),
-			B = ar_block_cache:get(block_cache, Current),
-			Miner = ar_mine:start({
-				B,
-				POA,
-				maps:fold(
-					fun
-						(TXID, ready_for_mining, Acc) ->
-							[{_, TX}] = ets:lookup(node_state, {tx, TXID}),
-							[TX | Acc];
-						(_, _, Acc) ->
-							Acc
-					end,
-					[],
-					Map
-				),
-				RewardAddr,
-				Tags,
-				ar_node_worker,
-				BlockTXPairs,
-				BI
-			}),
-			?LOG_INFO([{event, started_mining}]),
-			StateIn#{ miner => Miner }
-	end.
+	ar_watchdog:started_hashing(),
+	B = ar_block_cache:get(block_cache, Current),
+	Miner = ar_mine:start({
+		B,
+		maps:fold(
+			fun
+				(TXID, ready_for_mining, Acc) ->
+					[{_, TX}] = ets:lookup(node_state, {tx, TXID}),
+					[TX | Acc];
+				(_, _, Acc) ->
+					Acc
+			end,
+			[],
+			Map
+		),
+		RewardAddr,
+		Tags,
+		ar_node_worker,
+		BlockTXPairs,
+		BI
+	}),
+	?LOG_INFO([{event, started_mining}]),
+	StateIn#{ miner => Miner }.
 
 record_processing_time(StartTimestamp) ->
 	ProcessingTime = timer:now_diff(erlang:timestamp(), StartTimestamp) / 1000000,
