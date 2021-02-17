@@ -2,6 +2,8 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
+-include_lib("arweave/include/ar_mine.hrl").
+
 -define(ENCODED_KEY, <<"UbkeSd5Det8s6uLyuNJwCDFOZMQFa2zvsdKJ0k694LM">>).
 -define(ENCODED_HASH, <<"QQYWA46qnFENL4OTQdGU8bWBj5OKZ2OOPyynY3izung">>).
 -define(ENCODED_NONCE, <<"f_z7RLug8etm3SrmRf-xPwXEL0ZQ_xHng2A5emRDQBw">>).
@@ -22,7 +24,7 @@ test_randomx_backwards_compatibility() ->
     Input = << Nonce/binary, Segment/binary >>,
     {ok, Hash} = ar_mine_randomx:hash_fast_nif(State, Input, 0, 0, 0),
     ?assertEqual(ExpectedHash, Hash),
-    Diff = binary:encode_unsigned(ar_mine:max_difficulty() - 1, big),
+    Diff = binary:encode_unsigned(?MAX_DIFF - 1, big),
     {ok, _, TenthHash, _, _} =
         ar_mine_randomx:bulk_hash_fast_nif(State, Nonce, Nonce, Segment, Diff, 0, 0, 0, 12),
     ExpectedTenthHash = ar_util:decode(?ENCODED_TENTH_HASH),

@@ -38,7 +38,6 @@
 		ar_diff_dag,
 		ar_config_tests,
 		ar_deep_hash,
-		ar_inflation,
 		ar_util,
 		ar_base64_compatibility_tests,
 		ar_storage,
@@ -68,6 +67,7 @@
 		ar_pricing,
 		ar_gateway_middleware_tests,
 		ar_http_util_tests,
+		ar_inflation,
 		ar_mine_randomx_tests
 	]
 ).

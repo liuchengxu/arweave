@@ -1,3 +1,9 @@
+%% The maximum mining difficulty. 2 ^ 256. The network difficulty
+%% may theoretically be at most ?MAX_DIFF - 1.
+-define(MAX_DIFF, (
+	115792089237316195423570985008687907853269984665640564039457584007913129639936
+)).
+
 %% The difficuly a hash pointing to a candidate SPoA has to satisfy.
 -define(SPORA_SLOW_HASH_DIFF(Height), fun() ->
 	Forks = {
