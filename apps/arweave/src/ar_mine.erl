@@ -19,7 +19,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
-%% @doc State record for miners.
+%% State record for miners.
 -record(state, {
 	parent,						% The parent process. The mining solution is sent there.
 	current_block,				% The current tip block.

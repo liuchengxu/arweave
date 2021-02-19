@@ -110,7 +110,7 @@ tags_to_list(Tags) ->
 	[[Name, Value] || {Name, Value} <- Tags].
 
 %% @doc Calculate the minimum required transaction fee, including a wallet fee,
-%% if `Addr` is not in `Wallets`.
+%% if Addr is not in Wallets.
 %% @end
 get_tx_fee(DataSize, Rate, Height, Wallets, Addr, Timestamp) ->
 	true = Height >= ar_fork:height_2_4(),
