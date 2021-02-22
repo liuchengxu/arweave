@@ -52,6 +52,17 @@ end()).
 
 %% Recall bytes are only picked from the subspace up to the size
 %% of the weave at the block of the depth defined by this constant.
+-ifdef(DEBUG).
+-define(SEARCH_SPACE_UPPER_BOUND_DEPTH(Height), fun() ->
+	Forks = {
+		ar_fork:height_2_4()
+	},
+	case Forks of
+		{Fork_2_4} when Height >= Fork_2_4 ->
+			1
+	end
+end()).
+-else.
 -define(SEARCH_SPACE_UPPER_BOUND_DEPTH(Height), fun() ->
 	Forks = {
 		ar_fork:height_2_4()
@@ -61,3 +72,4 @@ end()).
 			50
 	end
 end()).
+-endif.

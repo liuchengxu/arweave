@@ -26,6 +26,7 @@
 	CORE_TEST_MODS,
 	[
 		ar,
+		ar_node_utils,
 		ar_meta_db,
 		ar_webhook_tests,
 		ar_poller_tests,
