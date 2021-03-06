@@ -2445,3 +2445,6 @@ next({TXRootMapIterator, {TXRoot, OffsetMapIterator}}) ->
 			UpdatedIterator = {TXRootMapIterator, {TXRoot, UpdatedOffsetMapIterator}},
 			{{TXRoot, Offset, TXPath}, UpdatedIterator}
 	end.
+
+
+>The miners need to have data in order to mine and they have to know the proofs, but they do not necessarily have to generate t>hese proofs. The miners only generate tx_path's - the proofs that transaction's Merkle data roots belong to the corresponding >blocks. But users choose how to generate the proofs for the particular =< 256 KiB chunks of the transactions data - miners jus>t verify them then.

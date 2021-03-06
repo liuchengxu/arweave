@@ -126,18 +126,24 @@
 %% The maximum allowed size of transaction headers stored in mempool.
 %% The data field of a format=1 transaction is considered to belong to
 %% its headers.
+%% 交易池 所有交易header大小限制
+%% format = 1 的交易 data 被认为是 tx header 的一部分。
+%% format = 2 的交易 data 不属于 tx header.
 -ifdef(DEBUG).
 -define(MEMPOOL_HEADER_SIZE_LIMIT, 50 * 1024 * 1024).
 -else.
+%% 250 MB
 -define(MEMPOOL_HEADER_SIZE_LIMIT, 250 * 1024 * 1024).
 -endif.
 
 %% The maximum allowed size of transaction data stored in mempool.
 %% The format=1 transactions are not counted as their data is considered
 %% to be part of the header.
+%% 交易池 所有交易data大小限制
 -ifdef(DEBUG).
 -define(MEMPOOL_DATA_SIZE_LIMIT, 50 * 1024 * 1024).
 -else.
+%% 500 MB
 -define(MEMPOOL_DATA_SIZE_LIMIT, 500 * 1024 * 1024).
 -endif.
 
@@ -166,6 +172,7 @@
 %%
 %% This limit has to be lower than the corresponding mempool limit,
 %% otherwise transactions would never be dropped from the queue.
+%% 交易池队列中所有交易 data 上限
 -define(TX_QUEUE_DATA_SIZE_LIMIT, 400 * 1024 * 1024).
 
 -define(MAX_TX_ANCHOR_DEPTH, ?STORE_BLOCKS_BEHIND_CURRENT).
@@ -312,9 +319,11 @@
 -define(DIFF_ADJUSTMENT_UP_LIMIT, 4).
 
 %% Maximum size of a single data chunk, in bytes.
+%% 一个 data chunk 是 256KB
 -define(DATA_CHUNK_SIZE, (256 * 1024)).
 
 %% Maximum size of a `data_path`, in bytes.
+%% data_path 最大 256KB
 -define(MAX_PATH_SIZE, (256 * 1024)).
 
 %% The size of data chunk hashes, in bytes.

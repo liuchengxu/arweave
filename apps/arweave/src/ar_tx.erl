@@ -507,6 +507,9 @@ chunk_binary(ChunkSize, Bin) ->
 	<<ChunkBin:ChunkSize/binary, Rest/binary>> = Bin,
 	[ChunkBin | chunk_binary(ChunkSize, Rest)].
 
+%% 将按照 256KB 大小分割的 Chunk 列表进行, 返回一个元素是 (Chunk, Chunk 最后byte在整个文件中的偏移位置)
+%% {0, []}
+%% {0 + 256KB_Pos, {Chunk, Chunk截止的 byte 数}}
 chunks_to_size_tagged_chunks(Chunks) ->
 	lists:reverse(
 		element(

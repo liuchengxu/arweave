@@ -933,6 +933,9 @@ reset_miner(#{ miner := Pid, automine := true } = StateIn) ->
 	ar_mine:stop(Pid),
 	start_mining(StateIn#{ miner => undefined }).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% 开始挖矿
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% @doc Force a node to start mining, update state.
 start_mining(StateIn) ->
 	#{

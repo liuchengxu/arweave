@@ -97,6 +97,7 @@ generate_tx_tree(B, SizeTaggedTXs) ->
 	{Root, Tree} = ar_merkle:generate_tree(SizeTaggedTXs),
 	B#block { tx_tree = Tree, tx_root = Root }.
 
+%  tx_data_root,(（tx_id, tx_data_root), tx_data_offset )
 generate_size_tagged_list_from_txs(TXs) ->
 	lists:reverse(
 		element(2,
